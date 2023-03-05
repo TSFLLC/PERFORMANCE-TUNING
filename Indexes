@@ -1,0 +1,153 @@
+	       --find database id
+   select * from sys.databases where name like 'adventure%'                            
+
+
+
+         -- FIND missing indexes and indexes handle.
+   select * from sys.dm_db_missing_index_details where database_id =7   -- FIND missing indexes and indexes handle.
+
+
+
+          --Find missing index Column (note:607 is the handle got on missing index)
+   select * from sys.dm_db_missing_index_Columns(607)                                  --Find missing index Column (note:607 is the handle got on missing index)
+
+
+
+          --Create a nonclustered index on a table or view
+	CREATE INDEX index1 ON schema1.table1 (column1);                             --Create a nonclustered index on a table or view
+
+            --Create a clustered index on a table and use a 3-part name for the table
+          CREATE CLUSTERED INDEX index1 ON database1.schema1.table1 (column1);   --Create a clustered index on a table and use a 3-part name for the table
+
+          ---Create a nonclustered index with a unique constraint and specify the sort order
+	CREATE UNIQUE INDEX index1 ON schema1.table1 (column1 DESC, column2 ASC, column3 DESC);   ---Create a nonclustered index with a unique constraint and specify the sort order
+	
+	
+        	--Create a nonclustered index on the VendorID column of the Purchasing.ProductVendor table.
+	CREATE INDEX IX_VendorID ON ProductVendor (VendorID);
+	CREATE INDEX IX_VendorID ON dbo.ProductVendor (VendorID DESC, Name ASC, Address DESC);
+	CREATE INDEX IX_VendorID ON Purchasing..ProductVendor (VendorID);
+	
+	
+          --Rebuild and add the OrganizationKey (Covering index)
+	CREATE INDEX IX_FF ON dbo.FactFinance (FinanceKey, DateKey, OrganizationKey DESC) WITH (DROP_EXISTING = ON);
+
+
+        --  Drops and re-creates an existing index on the ProductID with Fill factor set
+        CREATE NONCLUSTERED INDEX IX_WorkOrder_ProductID
+        ON Production.WorkOrder(ProductID)
+        WITH (FILLFACTOR = 80,
+        PAD_INDEX = ON,
+        DROP_EXISTING = ON);
+GO
+  --Create an index with included (non-key) columns
+	CREATE NONCLUSTERED INDEX  IX_Address_PostalCode 
+           ON Person.Address (PostalCode)
+          INCLUDE (AddressLine1, AddressLine2, City, StateProvinceID); GO
+
+
+   --Creates an index on a nonpartitioned table by using row compression.
+   CREATE NONCLUSTERED INDEX IX_INDEX_1
+   ON T1 (C2)
+   WITH (DATA_COMPRESSION = ROW);
+   GO
+   
+   
+   ------------------------INDEXES REBUILD
+
+--Rebuild index with row compression
+USE DB1;  
+GO  
+ALTER TABLE [dbo].[tableName] REBUILD PARTITION = ALL  
+WITH (DATA_COMPRESSION = ROW);   
+
+
+---Rebuild all index on the table with no compression
+ALTER INDEX ALL ON [TableName]
+REBUILD WITH (FILLFACTOR = 80, SORT_IN_TEMPDB = ON,
+              STATISTICS_NORECOMPUTE = ON)
+--Rebuild single index on the table with no compression
+ALTER INDEX  PK_Nmae ON TableNmae
+REBUILD
+
+---------------------------INDEXES REORGANIZE
+
+--Reorganize all index on the table
+ALTER INDEX ALL ON [Table Name] 
+REORGANIZE;
+
+--Reorganize single index on the table
+ALTER INDEX [IndexName]  ON  [Table Name ]
+REORGANIZE;
+
+
+
+ -----------------------INDEX USAGE
+SELECT OBJECT_NAME(S.[OBJECT_ID]) AS [OBJECT_NAME],
+I.[NAME] AS [INDEX NAME],
+USER_SEEKS,
+USER_SCANS,
+USER_LOOKUPS,
+USER_UPDATES
+From SYS.DM_DB_INDEX_USAGE_STATS AS S
+INNER JOIN SYS.INDEXES AS I
+ON I.[OBJECT_ID] = S.[OBJECT_ID]
+AND I.INDEX_ID = S.INDEX_ID
+WHERE OBJECTPROPERTY(S.[OBJECT_ID],'IsUserTable') = 1
+
+
+--------------------CHECK INDEX ON THE PARTICULAR TABLE
+
+exec sp_helpindex 'Person.Address';
+GO
+
+
+-------------------Check index on all the table in the database
+
+select schema_name(t.schema_id) + '.' + t.[name] as table_view,
+    case when t.[type] = 'U' then 'Table'
+        when t.[type] = 'V' then 'View'
+    end as [object_type],
+    i.index_id,
+    case when i.is_primary_key = 1 then 'Primary key'
+        when i.is_unique = 1 then 'Unique'
+        else 'Not unique' end as [type],
+    i.[name] as index_name,
+    substring(column_names, 1, len(column_names)-1) as [columns],
+    case when i.[type] = 1 then 'Clustered index'
+        when i.[type] = 2 then 'Nonclustered unique index'
+        when i.[type] = 3 then 'XML index'
+        when i.[type] = 4 then 'Spatial index'
+        when i.[type] = 5 then 'Clustered columnstore index'
+        when i.[type] = 6 then 'Nonclustered columnstore index'
+        when i.[type] = 7 then 'Nonclustered hash index'
+    end as index_type
+from sys.objects as t
+    inner join sys.indexes as i
+        on t.object_id = i.object_id
+    cross apply (select col.[name] + ', '
+                from sys.index_columns as ic
+                    inner join sys.columns as col
+                    on ic.object_id = col.object_id
+                    and ic.column_id = col.column_id
+                where ic.object_id = t.object_id
+                    and ic.index_id = i.index_id
+                order by col.column_id
+                for xml path ('') ) as D (column_names)
+where t.is_ms_shipped <> 1
+and index_id > 0
+order by schema_name(t.schema_id) + '.' + t.[name], i.index_id
+
+------------DROP CONSTRAINT
+  ALTER TABLE [customerdb]
+  DROP CONSTRAINT [PK_customerdb];
+  
+------------ADD primary key constrain
+ALTER TABLE [dbo].[customerdb]
+ ADD CONSTRAINT PK_customer PRIMARY KEY  (custonerID, ID);
+
+------------Add identity column
+     ALTER TABLE [dbo].[TableName]
+  ADD ID INT IDENTITY(1,1) NOT NULL
+
+

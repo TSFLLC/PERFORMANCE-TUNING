@@ -1,3 +1,5 @@
+
+
 ------------------Check fragmentation on the particular Database-------------
 USE DBName
 	GO
@@ -41,3 +43,19 @@ WHERE
     AND object_name(i.object_id) = 'TableName'
 ORDER BY 
     ps.avg_fragmentation_in_percent DESC;
+  
+  ------------------Check fragmentation on All the databases-------------
+    
+   SELECT DB_NAME(database_id) AS [Database Name],
+    OBJECT_NAME(object_id, database_id) AS [Table Name], 
+    [index_type_desc] AS [Index Type], 
+    page_count AS [Number Of Pages],
+    [avg_fragmentation_in_percent] AS [Percentage Of Fragementation]
+FROM sys.dm_db_index_physical_stats(NULL, NULL, NULL, NULL, 'SAMPLED')
+order by [Percentage Of Fragementation] desc 
+    
+    
+    
+    
+    
+    

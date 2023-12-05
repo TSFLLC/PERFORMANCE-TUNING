@@ -1,0 +1,33 @@
+   
+       XML  Extracted
+ <agencetext name="1234567" textNumber="976453" title="BTG First" member="false"
+    
+     Select 
+	 
+        XMLdata.value('(//agencetext/@member)[1]','nvarchar(64)') [Table_colun] 
+	 FROM [Table] Where condition
+     */
+
+
+ UPDATE Table
+SET XMLdata.modify('replace value of (/agencetext/@member)[1] with "true"')
+		 
+ FROM [Table] Where condition
+
+
+
+-----Example 2
+       XML Extracted
+<agent name="sada"  agentrole="Teti " active="true" 
+  <contactdata>
+    <emails>
+      <email type="B" address="whatever@gmail.com.com" />
+    </emails>
+  </contactdata>
+</agent>
+
+
+Select
+XMLdata.value('(//agent/contactdata/emails/email/@address)[1]','nvarchar(64)') [Email]
+FROM table
+

@@ -1,0 +1,49 @@
+-----Run this in powershell to collect data set infos(perfmon)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$InstType="STD";iex ((New-Object System.Net.WebClient).DownloadString('https://share.heraflux.net/perfmon/HFXPerfmon.ps1'))
+$InstType="SQL";iex ((New-Object System.Net.WebClient).DownloadString('https://share.heraflux.net/perfmon/HFXPerfmon.ps1'))
+Get-ScheduledTask -TaskName HFX | Start-ScheduledTask
+
+
+
+---Run this to collect CPU Utilisation infos.
+DECLARE @ts_now bigint = (SELECT cpu_ticks/(cpu_ticks/ms_ticks) FROM sys.dm_os_sys_info WITH (NOLOCK));
+ 
+SELECT TOP(256) SQLProcessUtilization AS [SQL Server Process CPU Utilization], 
+               SystemIdle AS [System Idle Process], 
+               100 - SystemIdle - SQLProcessUtilization AS [Other Process CPU Utilization], 
+               DATEADD(ms, -1 * (@ts_now - [timestamp]), GETDATE()) AS [Event Time] 
+FROM (SELECT record.value('(./Record/@id)[1]', 'int') AS record_id, 
+record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int') 
+AS [SystemIdle], 
+record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int') 
+AS [SQLProcessUtilization], [timestamp] 
+ FROM (SELECT [timestamp], CONVERT(xml, record) AS [record] 
+FROM sys.dm_os_ring_buffers WITH (NOLOCK)
+WHERE ring_buffer_type = N'RING_BUFFER_SCHEDULER_MONITOR' 
+AND record LIKE N'%<SystemHealth>%') AS x) AS y 
+ORDER BY record_id DESC OPTION (RECOMPILE);
+
+
+
+---Analize  database and performance issue 
+SELECT TOP(50) DB_NAME(t.[dbid]) AS [Database Name], 
+REPLACE(REPLACE(LEFT(t.[text], 255), CHAR(10),''), CHAR(13),'') AS [Short Query Text],  
+qs.total_worker_time AS [Total Worker Time], qs.min_worker_time AS [Min Worker Time],
+qs.total_worker_time/qs.execution_count AS [Avg Worker Time], 
+qs.max_worker_time AS [Max Worker Time], 
+qs.min_elapsed_time AS [Min Elapsed Time], 
+qs.total_elapsed_time/qs.execution_count AS [Avg Elapsed Time], 
+qs.max_elapsed_time AS [Max Elapsed Time],
+qs.min_logical_reads AS [Min Logical Reads],
+qs.total_logical_reads/qs.execution_count AS [Avg Logical Reads],
+qs.max_logical_reads AS [Max Logical Reads], 
+qs.execution_count AS [Execution Count],
+CASE WHEN CONVERT(nvarchar(max), qp.query_plan) COLLATE Latin1_General_BIN2 LIKE N'%<MissingIndexes>%' THEN 1 ELSE 0 END AS [Has Missing Index],
+qs.creation_time AS [Creation Time]
+--,t.[text] AS [Query Text], qp.query_plan AS [Query Plan] -- uncomment out these columns if not copying results to Excel
+FROM sys.dm_exec_query_stats AS qs WITH (NOLOCK)
+CROSS APPLY sys.dm_exec_sql_text(plan_handle) AS t 
+CROSS APPLY sys.dm_exec_query_plan(plan_handle) AS qp 
+ORDER BY qs.total_worker_time DESC OPTION (RECOMPILE);
+
